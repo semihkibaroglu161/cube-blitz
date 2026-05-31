@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cube Blitz: Space Odyssey</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #020205;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Press Start 2P', cursive;
+            color: #fff;
+        }
+        
+        #gameWrapper {
+            position: relative;
+            box-shadow: 0 0 60px rgba(0, 229, 255, 0.2);
+            border: 6px solid #1a1a1a;
+            border-radius: 12px;
+            background: #000;
+        }
+
+        /* Hareketli CRT Çizgi Efekti */
+        #gameWrapper::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 6px;
+            z-index: 10;
+            pointer-events: none;
+            border-radius: 8px;
+            animation: crtScroll 18s linear infinite;
+        }
+
+        @keyframes crtScroll {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 100%; }
+        }
+
+        canvas {
+            cursor: crosshair;
+            display: block;
+        }
+
+        /* Üst UI Paneli */
+        #ui {
+            position: absolute;
+            top: 25px; left: 25px; right: 25px;
+            font-size: 12px;
+            text-shadow: 3px 3px #000;
+            pointer-events: none;
+            user-select: none;
+            z-index: 11;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ui-left { display: flex; gap: 30px; }
+        .combo-container { display: flex; flex-direction: column; gap: 5px; }
+        
+        #comboBarContainer {
+            width: 120px;
+            height: 6px;
+            background: #222;
+            border: 1px solid #ff007f;
+            display: none;
+        }
+        #comboBar {
+            width: 100%;
+            height: 100%;
+            background: #ff007f;
+            transition: width 0.1s linear;
+        }
+
+        .high-score-box {
+            background: rgba(0, 229, 255, 0.1);
+            border: 2px solid #00e5ff;
+            padding: 8px 12px;
+            font-size: 10px;
+            color: #00e5ff;
+        }
+
+        /* Başlat Menüsü - Kozmik Arka Planı Göstermek İçin Şeffaflaştırıldı */
+        #startScreen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(3, 3, 10, 0.55);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            cursor: pointer;
+            text-align: center;
+            border: 4px solid #00e5ff;
+            border-radius: 6px;
+        }
+        #startScreen h1 { font-size: 42px; color: #00e5ff; margin-bottom: 25px; text-shadow: 0 0 15px #00e5ff; }
+        
+        /* Siber Dil Modülleri */
+        .lang-selector {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            z-index: 25;
+        }
+        .lang-btn {
+            font-size: 11px;
+            padding: 8px 16px;
+            color: #666;
+            border: 2px solid #333;
+            background: rgba(0,0,0,0.7);
+            transition: all 0.2s ease;
+        }
+        .lang-btn.active {
+            color: #00ff00;
+            border-color: #00ff00;
+            text-shadow: 0 0 8px #00ff00;
+            box-shadow: inset 0 0 8px rgba(0,255,0,0.2);
+        }
+        .lang-btn:hover {
+            border-color: #00e5ff;
+            color: #00e5ff;
+        }
+
+        .instructions-box {
+            border: 2px dashed #ff007f;
+            padding: 25px;
+            background: rgba(255, 0, 127, 0.15);
+            width: 600px;
+            margin-bottom: 40px;
+            text-align: left;
+        }
+        .instructions-box h2 { font-size: 16px; color: #ff007f; margin-bottom: 20px; text-align: center; }
+        .instructions-box p { font-size: 11px; line-height: 2.2; color: #ccc; }
+
+        #startScreen .blink { animation: blinker 0.8s linear infinite; color: #00ff00; font-size: 16px; margin-top: 10px; }
+        @keyframes blinker { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div id="gameWrapper">
+        <div id="startScreen">
+            <h1>CUBE BLITZ</h1>
+            
+            <div class="lang-selector">
+                <div class="lang-btn active" data-lang="tr">[ TR_CORE ]</div>
+                <div class="lang-btn" data-lang="en">[ EN_CORE ]</div>
+            </div>
+
+            <div class="instructions-box">
+                <h2 id="uiHowToPlay">[ NASIL OYNANIR ]</h2>
+                <p id="uiInst1">• Fare sol tıkı ile küpün üzerine basılı tutun.</p>
+                <p id="uiInst2">• Sapanı germek için fareyi geriye doğru sürükleyin.</p>
+                <p id="uiInst3">• Yörüngeyi ayarladıktan sonra sol tıkı bırakıp fırlatın.</p>
+                <p id="uiInst4">• Kombo barı tükenmeden sonraki platforma ulaşıp seriyi koruyun.</p>
+            </div>
+            <p class="blink" id="uiStartPrompt">BAŞLAMAK İÇİN TIKLA</p>
+        </div>
+
+        <div id="ui">
+            <div class="ui-left">
+                <div><span id="labelScore">SKOR</span>: <span id="scoreVal">0</span></div>
+                <div class="combo-container">
+                    <div><span id="labelCombo">KOMBO</span>: x<span id="comboVal">1</span></div>
+                    <div id="comboBarContainer"><div id="comboBar"></div></div>
+                </div>
+            </div>
+            <div class="high-score-box"><span id="labelBest">BEST</span>: <span id="highScoreVal">0</span></div>
+        </div>
+        
+        <canvas id="gameCanvas" width="1200" height="650"></canvas>
+    </div>
+
+    <script>
+        // --- DİL VE YERELLEŞTİRME VERİSİ ---
+        let currentLang = 'tr';
+        const translations = {
+            tr: {
+                howToPlay: "[ NASIL OYNANIR ]",
+                inst1: "• Fare sol tıkı ile küpün üzerine basılı tutun.",
+                inst2: "• Sapanı germek için fareyi geriye doğru sürükleyin.",
+                inst3: "• Yörüngeyi ayarladıktan sonra sol tıkı bırakıp fırlatın.",
+                inst4: "• Kombo barı tükenmeden sonraki platforma ulaşıp seriyi koruyun.",
+                startPrompt: "BAŞLAMAK İÇİN TIKLA",
+                score: "SKOR",
+                combo: "KOMBO",
+                best: "BEST",
+                dim1: "BOYUT 1: NEON NEBULA",
+                dim2: "BOYUT 2: CYBER VOID",
+                dim3: "BOYUT 3: COSMIC MATRIX",
+                systemCrash: "SİSTEM ÇÖKTÜ",
+                finalScore: "ALINAN SKOR: ",
+                sessionBest: "BU OTURUMDAKİ EN YÜKSEK SKOR: ",
+                reboot: "YENİDEN BAŞLATMAK İÇİN [F5] TUŞUNA BASIN"
+            },
+            en: {
+                howToPlay: "[ HOW TO PLAY ]",
+                inst1: "• Click and hold left mouse button on the cube.",
+                inst2: "• Drag backward to aim and stretch the slingshot.",
+                inst3: "• Release the mouse button to launch the cube.",
+                inst4: "• Reach the next platform before the combo bar drains.",
+                startPrompt: "CLICK TO LAUNCH SYSTEM",
+                score: "SCORE",
+                combo: "COMBO",
+                best: "BEST",
+                dim1: "DIMENSION 1: NEON NEBULA",
+                dim2: "DIMENSION 2: CYBER VOID",
+                dim3: "DIMENSION 3: COSMIC MATRIX",
+                systemCrash: "SYSTEM CRASHED",
+                finalScore: "FINAL SCORE: ",
+                sessionBest: "SESSION HIGH SCORE: ",
+                reboot: "PRESS [F5] TO REBOOT SYSTEM"
+            }
+        };
+
+        function switchLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+            
+            document.getElementById('uiHowToPlay').innerText = t.howToPlay;
+            document.getElementById('uiInst1').innerText = t.inst1;
+            document.getElementById('uiInst2').innerText = t.inst2;
+            document.getElementById('uiInst3').innerText = t.inst3;
+            document.getElementById('uiInst4').innerText = t.inst4;
+            document.getElementById('uiStartPrompt').innerText = t.startPrompt;
+            document.getElementById('labelScore').innerText = t.score;
+            document.getElementById('labelCombo').innerText = t.combo;
+            document.getElementById('labelBest').innerText = t.best;
+        }
+
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchLanguage(btn.getAttribute('data-lang'));
+            });
+        });
+
+        // --- SES MOTORU ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const musicBassline = [110, 110, 110, 110, 130, 130, 130, 130, 98, 98, 98, 98, 87, 87, 130, 146];
+        const musicMelody   = [220, 330, 440, 330, 261, 392, 523, 392, 196, 293, 392, 293, 174, 261, 349, 392];
+        let musicStep = 0;
+
+        function playMusicLoop() {
+            if (!gameStarted || gameOver) return;
+            let speedBonus = Math.min(1.8, 1 + (score * 0.008) + (combo * 0.04));
+            let currentTempo = 170 / speedBonus;
+
+            const now = audioCtx.currentTime;
+            const oscBass = audioCtx.createOscillator();
+            const gainBass = audioCtx.createGain();
+            oscBass.type = 'square';
+            oscBass.frequency.setValueAtTime(musicBassline[musicStep % musicBassline.length], now);
+            gainBass.gain.setValueAtTime(0.025, now);
+            gainBass.gain.exponentialRampToValueAtTime(0.001, now + (currentTempo/1000) * 0.95);
+            oscBass.connect(gainBass); gainBass.connect(audioCtx.destination);
+            oscBass.start(now); oscBass.stop(now + (currentTempo/1000) * 0.95);
+
+            if (musicStep % 2 === 0) {
+                const oscMelody = audioCtx.createOscillator();
+                const gainMelody = audioCtx.createGain();
+                oscMelody.type = 'triangle';
+                let noteIndex = (musicStep + combo) % musicMelody.length;
+                oscMelody.frequency.setValueAtTime(musicMelody[noteIndex], now);
+                gainMelody.gain.setValueAtTime(0.015, now);
+                gainMelody.gain.exponentialRampToValueAtTime(0.001, now + (currentTempo/1000) * 1.8);
+                oscMelody.connect(gainMelody); gainMelody.connect(audioCtx.destination);
+                oscMelody.start(now); oscMelody.stop(now + (currentTempo/1000) * 1.8);
+            }
+
+            musicStep++;
+            setTimeout(playMusicLoop, currentTempo);
+        }
+
+        function play8BitSFX(type) {
+            if (audioCtx.state === 'suspended') return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'jump') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(700, now + 0.12);
+                gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.start(now); osc.stop(now + 0.12);
+            } 
+            else if (type === 'land') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(120, now);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+                osc.start(now); osc.stop(now + 0.06);
+            }
+            else if (type === 'perfect') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
+                osc.frequency.setValueAtTime(900, now + 0.06); osc.frequency.setValueAtTime(1300, now + 0.12);
+                gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            }
+            else if (type === 'gameover') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(40, now + 0.6);
+                gain.gain.setValueAtTime(0.12, now); gain.gain.linearRampToValueAtTime(0, now + 0.6);
+                osc.start(now); osc.stop(now + 0.6);
+            }
+        }
+
+        // --- OYUN PARAMETRELERİ ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreVal = document.getElementById('scoreVal');
+        const comboVal = document.getElementById('comboVal');
+        const highScoreVal = document.getElementById('highScoreVal');
+        const comboBar = document.getElementById('comboBar');
+        const comboBarContainer = document.getElementById('comboBarContainer');
+        const startScreen = document.getElementById('startScreen');
+
+        let gameStarted = false;
+        let score = 0;
+        let combo = 1;
+        let screenShake = 0;
+        let gameOver = false;
+        let gameTime = 0;
+
+        let comboTimer = 0;
+        const maxComboTime = 240;
+
+        let highScore = sessionStorage.getItem('cubeBlitzHighScore') ? parseInt(sessionStorage.getItem('cubeBlitzHighScore')) : 0;
+        highScoreVal.innerText = highScore;
+
+        const gravity = 0.42;
+        
+        let player = {
+            x: 150, y: 400, vx: 0, vy: 0,
+            size: 28, isGrounded: true,
+            isDragging: false, dragStartX: 0, dragStartY: 0,
+            dragX: 0, dragY: 0, rotation: 0
+        };
+
+        let platforms = [
+            { x: 100, y: 480, width: 140, height: 18, isTarget: false },
+            { x: 450, y: 400, width: 110, height: 18, isTarget: true },
+            { x: 850, y: 320, width: 110, height: 18, isTarget: false }
+        ];
+
+        let particles = [];
+        let stars = [];
+
+        // --- YENİ: HAREKETLİ GALAXY & EVREN YAPISI ---
+        let cosmicObjects = {
+            galaxy: { x: 900, y: 220, angle: 0, size: 140 }, // Samanyolu Sarmal Galaksisi
+            nebula: { x: 250, y: 420, radius: 200 },       // Renkli Kozmik Gaz Bulutu
+            planets: [
+                { x: 400, y: 130, r: 24, color: '#00e5ff', ring: true, vx: -0.06 },  // Neon Halkalı Siber Gezegen
+                { x: 1050, y: 520, r: 35, color: '#ff007f', ring: false, vx: -0.04 } // Plazma Dev Gezegeni
+            ]
+        };
+
+        function initStars() {
+            stars = [];
+            for(let i = 0; i < 80; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2.5 + 0.5,
+                    speed: Math.random() * 0.8 + 0.2
+                });
+            }
+        }
+
+        function getSpaceDimension() {
+            const t = translations[currentLang];
+            if (score < 40) {
+                return { bg: '#03030c', starColor: '#00e5ff', name: t.dim1 };
+            } else if (score < 100) {
+                return { bg: '#0b0214', starColor: '#ff007f', name: t.dim2 };
+            } else {
+                return { bg: '#010f0a', starColor: '#00ffaa', name: t.dim3 };
+            }
+        }
+
+        startScreen.addEventListener('click', () => {
+            audioCtx.resume().then(() => {
+                gameStarted = true;
+                startScreen.style.display = 'none';
+                playMusicLoop();
+            });
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!player.isGrounded || gameOver || !gameStarted) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            if (mx >= player.x && mx <= player.x + player.size && my >= player.y && my <= player.y + player.size) {
+                player.isDragging = true;
+                player.dragStartX = player.x + player.size/2;
+                player.dragStartY = player.y + player.size/2;
+                player.dragX = player.dragStartX;
+                player.dragY = player.dragStartY;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!player.isDragging) return;
+            const rect = canvas.getBoundingClientRect();
+            player.dragX = e.clientX - rect.left;
+            player.dragY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (!player.isDragging) return;
+            player.isDragging = false;
+
+            let dx = player.dragStartX - player.dragX;
+            let dy = player.dragStartY - player.dragY;
+            
+            player.vx = dx * 0.13;
+            player.vy = dy * 0.13;
+            player.isGrounded = false;
+            
+            play8BitSFX('jump');
+        });
+
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: Math.random() * 4 + 1.5,
+                    alpha: 1,
+                    color: color
+                });
+            }
+        }
+
+        function createNewPlatform() {
+            const lastPlat = platforms[platforms.length - 1];
+            const nextX = lastPlat.x + Math.random() * 240 + 200;
+            const nextY = Math.max(160, Math.min(550, lastPlat.y + (Math.random() - 0.5) * 220));
+            const nextWidth = Math.max(65, 120 - score * 1.5); 
+            platforms.push({ x: nextX, y: nextY, width: nextWidth, height: 18, isTarget: true });
+        }
+
+        function update() {
+            gameTime++;
+            if (screenShake > 0) screenShake -= 0.1;
+
+            // --- KOZMİK ELEMENTLERİN MENÜDE DE DÖNMESİNİ SAĞLAYAN GÜNCELLEME ---
+            cosmicObjects.galaxy.angle += 0.0015; // Samanyolu yavaşça ekseninde döner
+            
+            cosmicObjects.planets.forEach(p => {
+                p.x += p.vx;
+                // Ekrandan çıkan gezegenleri sağdan kusursuz döngüyle tekrar alıyoruz
+                if (p.x < -p.r * 2) {
+                    p.x = canvas.width + p.r * 2;
+                    p.y = Math.random() * (canvas.height - 200) + 100;
+                }
+            });
+
+            stars.forEach(star => {
+                star.x -= star.speed;
+                if (star.x < 0) {
+                    star.x = canvas.width;
+                    star.y = Math.random() * canvas.height;
+                }
+            });
+
+            // Menüdeyken oyun mekaniklerini işletme, aşağıyı pas geç
+            if (!gameStarted) return;
+
+            if (combo > 1) {
+                comboBarContainer.style.display = 'block';
+                comboTimer--;
+                let percent = (comboTimer / maxComboTime) * 100;
+                comboBar.style.width = percent + '%';
+
+                if (comboTimer <= 0) {
+                    combo = 1;
+                    comboVal.innerText = combo;
+                    comboBarContainer.style.display = 'none';
+                }
+            } else {
+                comboBarContainer.style.display = 'none';
+            }
+
+            if (!player.isGrounded) {
+                player.vy += gravity;
+                player.x += player.vx;
+                player.y += player.vy;
+                player.rotation += player.vx * 0.04;
+
+                platforms.forEach((plat) => {
+                    if (player.vy > 0 &&
+                        player.x + player.size > plat.x && player.x < plat.x + plat.width &&
+                        player.y + player.size >= plat.y && player.y + player.size <= plat.y + 14) {
+                        
+                        player.y = plat.y - player.size;
+                        player.vy = 0; player.vx = 0;
+                        player.isGrounded = true;
+                        player.rotation = 0;
+
+                        if (plat.isTarget) {
+                            plat.isTarget = false;
+                            
+                            let platCenter = plat.x + plat.width / 2;
+                            let playerCenter = player.x + player.size / 2;
+                            let distance = Math.abs(platCenter - playerCenter);
+
+                            if (distance < 16) { 
+                                combo++;
+                                comboTimer = maxComboTime;
+                                score += 10 * combo;
+                                screenShake = 5;
+                                play8BitSFX('perfect');
+                                createParticles(playerCenter, player.y + player.size, "#ff007f", 20);
+                            } else {
+                                combo = 1;
+                                score += 5;
+                                play8BitSFX('land');
+                                createParticles(playerCenter, player.y + player.size, "#00e5ff", 10);
+                            }
+
+                            scoreVal.innerText = score;
+                            comboVal.innerText = combo;
+                            
+                            if (score > highScore) {
+                                highScore = score;
+                                sessionStorage.setItem('cubeBlitzHighScore', highScore);
+                                highScoreVal.innerText = highScore;
+                            }
+
+                            createNewPlatform();
+                        }
+                    }
+                });
+            }
+
+            // KAMERA TAKİBİ VE PARALLAKS GALAXY MOTORU
+            if (player.x > canvas.width * 0.4) {
+                let offset = player.x - canvas.width * 0.4;
+                player.x -= offset;
+                if (player.isDragging) { player.dragStartX -= offset; player.dragX -= offset; }
+                platforms.forEach(p => p.x -= offset);
+                particles.forEach(p => p.x -= offset);
+                
+                // Parallaks Katmanları: Uzaktaki cisimler derinlik hissi için daha yavaş kayar
+                stars.forEach(s => s.x -= offset * 0.4);
+                cosmicObjects.galaxy.x -= offset * 0.08; 
+                cosmicObjects.nebula.x -= offset * 0.05;
+                cosmicObjects.planets.forEach(p => p.x -= offset * 0.12);
+            }
+
+            // Ekrandan tamamen sapan galaksi yapılarının sonsuz döngü kontrolü
+            if (cosmicObjects.galaxy.x < -200) cosmicObjects.galaxy.x = canvas.width + 200;
+            if (cosmicObjects.nebula.x < -300) cosmicObjects.nebula.x = canvas.width + 300;
+
+            particles.forEach((p, index) => {
+                p.x += p.vx; p.y += p.vy;
+                p.alpha -= 0.025;
+                if (p.alpha <= 0) particles.splice(index, 1);
+            });
+
+            if (player.y > canvas.height + 60 && !gameOver) {
+                gameOver = true;
+                play8BitSFX('gameover');
+            }
+        }
+
+        function draw() {
+            const currentDim = getSpaceDimension();
+            const t = translations[currentLang];
+            
+            ctx.fillStyle = currentDim.bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Yıldız Alanı
+            stars.forEach(star => {
+                ctx.fillStyle = currentDim.starColor;
+                ctx.fillRect(star.x, star.y, star.size, star.size);
+            });
+
+            // --- YENİ: KOZMİK EVREN ÇİZİMLERİ ---
+            
+            // 1. Nebula (Kozmic Gaz Bulutu) Çizimi
+            let nebGrad = ctx.createRadialGradient(cosmicObjects.nebula.x, cosmicObjects.nebula.y, 10, cosmicObjects.nebula.x, cosmicObjects.nebula.y, cosmicObjects.nebula.radius);
+            nebGrad.addColorStop(0, 'rgba(120, 0, 255, 0.18)');
+            nebGrad.addColorStop(0.5, 'rgba(255, 0, 127, 0.05)');
+            nebGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = nebGrad;
+            ctx.beginPath();
+            ctx.arc(cosmicObjects.nebula.x, cosmicObjects.nebula.y, cosmicObjects.nebula.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Samanyolu Gerçekçi Sarmal (Logaritmik Spiral) Galaksi Çizimi
+            ctx.save();
+            ctx.translate(cosmicObjects.galaxy.x, cosmicObjects.galaxy.y);
+            ctx.rotate(cosmicObjects.galaxy.angle);
+            for (let arm = 0; arm < 3; arm++) { // 3 Kollu sarmal yapı
+                for (let i = 0; i < 90; i++) {
+                    let angle = i * 0.07 + (arm * ((Math.PI * 2) / 3));
+                    let dist = i * 2.2;
+                    let px = Math.cos(angle) * dist;
+                    let py = Math.sin(angle) * dist;
+                    ctx.fillStyle = arm === 0 ? '#00e5ff' : (arm === 1 ? '#ff007f' : '#00ffaa');
+                    ctx.globalAlpha = Math.max(0, 1 - (i / 90)) * 0.5;
+                    ctx.fillRect(px, py, i % 4 === 0 ? 3 : 2, i % 4 === 0 ? 3 : 2);
+                }
+            }
+            ctx.restore();
+            ctx.globalAlpha = 1;
+
+            // 3. Gezegenlerin Estetik Arcade Çizimleri
+            cosmicObjects.planets.forEach(p => {
+                ctx.save();
+                // Gezegen Gövdesi (arkadaki yıldızları kesmesi için opak iç katman)
+                ctx.fillStyle = currentDim.bg;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Neon Çerçeve Çizgisi
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Gölgelendirme Çizgileri
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y + p.r * 0.3, p.r * 0.8, 0.1, Math.PI - 0.1);
+                ctx.stroke();
+
+                // Eğer halkalı gezegense (Satürn Tipi)
+                if (p.ring) {
+                    ctx.strokeStyle = '#ff007f';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.ellipse(p.x, p.y, p.r * 1.7, p.r * 0.35, -0.18, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            });
+
+            // Aktif Boyut Metni Göstergesi
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.font = '8px "Press Start 2P"';
+            ctx.fillText(currentDim.name, 25, canvas.height - 25);
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+            ctx.save();
+            if (screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake*2, (Math.random()-0.5)*screenShake*2);
+
+            if (player.isDragging) {
+                ctx.beginPath();
+                ctx.moveTo(player.dragStartX, player.dragStartY);
+                ctx.lineTo(player.dragX, player.dragY);
+                ctx.strokeStyle = '#ff007f'; ctx.lineWidth = 4;
+                ctx.setLineDash([6, 6]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                let tx = player.x + player.size/2;
+                let ty = player.y + player.size/2;
+                let tvx = (player.dragStartX - player.dragX) * 0.13;
+                let tvy = (player.dragStartY - player.dragY) * 0.13;
+                
+                ctx.fillStyle = 'rgba(0, 229, 255, 0.4)';
+                for (let i = 0; i < 25; i++) {
+                    tvy += gravity; tx += tvx; ty += tvy;
+                    ctx.fillRect(tx - 2, ty - 2, 5, 5);
+                }
+            }
+
+            platforms.forEach((plat) => {
+                ctx.fillStyle = plat.isTarget ? '#ff007f' : '#00e5ff';
+                ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(plat.x, plat.y + plat.height - 5, plat.width, 5);
+            });
+
+            ctx.save();
+            ctx.translate(player.x + player.size/2, player.y + player.size/2);
+            ctx.rotate(player.rotation);
+            
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+            ctx.strokeStyle = '#00e5ff';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(-player.size/2, -player.size/2, player.size, player.size);
+            
+            if (player.isDragging) {
+                let dist = Math.hypot(player.dragStartX - player.dragX, player.dragStartY - player.dragY) * 0.0025;
+                ctx.scale(1 + dist, 1 - dist * 0.4);
+            }
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(4, -8, 5, 5); ctx.fillRect(14, -8, 5, 5);
+            ctx.fillRect(6, 3, 11, 3);
+            ctx.restore();
+
+            particles.forEach((p) => {
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            });
+            ctx.globalAlpha = 1;
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(3, 3, 10, 0.95)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#ff007f';
+                ctx.font = '28px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText(t.systemCrash, canvas.width / 2, canvas.height / 2 - 40);
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px "Press Start 2P"';
+                ctx.fillText(t.finalScore + score, canvas.width / 2, canvas.height / 2 + 10);
+                
+                ctx.fillStyle = '#00e5ff';
+                ctx.fillText(t.sessionBest + highScore, canvas.width / 2, canvas.height / 2 + 45);
+                
+                ctx.fillStyle = '#666';
+                ctx.font = '10px "Press Start 2P"';
+                ctx.fillText(t.reboot, canvas.width / 2, canvas.height / 2 + 100);
+            }
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Başlangıç Kurulumları
+        switchLanguage('tr');
+        initStars(); // Yıldızlar ve kozmos artık menü açılır açılmaz yüklenir
+        createNewPlatform();
+        gameLoop();
+    </script>
+</body>
+</html>
